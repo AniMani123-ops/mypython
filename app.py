@@ -1,20 +1,19 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-from utils import get_youtube_service, get_channel_stats, POPULAR_NEWS_CHANNELS
+from utils import get_youtube_service, get_channel_stats, search_channels, POPULAR_NEWS_CHANNELS
 
 st.set_page_config(page_title="YouTube News Channel Comparison", layout="wide")
 
 st.title("YouTube News Channel Comparison")
 st.markdown("Compare statistics of different YouTube news channels.")
 
-# Sidebar for API Key
-with st.sidebar:
-    st.header("Settings")
-    api_key = st.text_input("Enter your YouTube Data API Key", type="password")
-    if not api_key:
-        st.warning("Please enter your API Key to proceed.")
-        st.stop()
+# Load API Key from Secrets
+if "YOUTUBE_API_KEY" in st.secrets:
+    api_key = st.secrets["YOUTUBE_API_KEY"]
+else:
+    st.error("YOUTUBE_API_KEY not found in .streamlit/secrets.toml")
+    st.stop()
 
 # Initialize Service
 service = get_youtube_service(api_key)
@@ -23,17 +22,72 @@ if not service:
     st.error("Failed to initialize YouTube service. Please check your API Key.")
     st.stop()
 
-# Channel Selection
-st.header("Select Channels")
+# Initialize session state for selected channels
+if 'selected_channels' not in st.session_state:
+    # Initialize with some default popular channels
+    initial_channels = list(POPULAR_NEWS_CHANNELS.keys())[:2]
+    st.session_state['selected_channels'] = [
+        {'id': POPULAR_NEWS_CHANNELS[name], 'title': name} 
+        for name in initial_channels
+    ]
 
-selected_channels = st.multiselect(
-    "Select Channels to Compare",
-    options=list(POPULAR_NEWS_CHANNELS.keys()),
-    default=list(POPULAR_NEWS_CHANNELS.keys())[:2]
-)
+# Sidebar: Channel Search & Management
+with st.sidebar:
+    st.header("Manage Channels")
+    
+    # Search Section
+    st.subheader("Add New Channel")
+    search_query = st.text_input("Search for a channel")
+    
+    if st.button("Search"):
+        if search_query:
+            with st.spinner("Searching..."):
+                results, error = search_channels(service, search_query)
+                if results:
+                    st.session_state['search_results'] = results
+                elif error:
+                    st.error(error)
+                else:
+                    st.warning("No channels found.")
+    
+    # Display Search Results
+    if 'search_results' in st.session_state:
+        options = {f"{ch['title']}": ch for ch in st.session_state['search_results']}
+        selected_search_result = st.selectbox("Select channel to add", options=list(options.keys()))
+        
+        if st.button("Add Channel"):
+            channel_to_add = options[selected_search_result]
+            
+            # Check if already added
+            current_ids = [ch['id'] for ch in st.session_state['selected_channels']]
+            if channel_to_add['id'] not in current_ids:
+                st.session_state['selected_channels'].append({
+                    'id': channel_to_add['id'],
+                    'title': channel_to_add['title']
+                })
+                st.success(f"Added {channel_to_add['title']}")
+                # Optional: Clear search results after adding
+                # del st.session_state['search_results'] 
+            else:
+                st.warning("Channel already selected.")
 
-if selected_channels:
-    selected_channel_ids = [POPULAR_NEWS_CHANNELS[name] for name in selected_channels]
+    st.divider()
+
+    # List of Selected Channels
+    st.subheader("Selected Channels")
+    
+    # Create a copy to iterate while modifying
+    for ch in st.session_state['selected_channels'][:]:
+        col1, col2 = st.columns([3, 1])
+        col1.markdown(f"**{ch['title']}**")
+        if col2.button("❌", key=ch['id']):
+            st.session_state['selected_channels'].remove(ch)
+            st.rerun()
+
+# Main Content: Comparison Logic
+if st.session_state['selected_channels']:
+    selected_channel_ids = [ch['id'] for ch in st.session_state['selected_channels']]
+    
     if st.button("Compare Selected Channels"):
         with st.spinner("Fetching statistics..."):
             stats_df = get_channel_stats(service, selected_channel_ids)
