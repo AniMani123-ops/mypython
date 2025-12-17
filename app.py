@@ -24,12 +24,7 @@ if not service:
 
 # Initialize session state for selected channels
 if 'selected_channels' not in st.session_state:
-    # Initialize with some default popular channels
-    initial_channels = list(POPULAR_NEWS_CHANNELS.keys())[:2]
-    st.session_state['selected_channels'] = [
-        {'id': POPULAR_NEWS_CHANNELS[name], 'title': name} 
-        for name in initial_channels
-    ]
+    st.session_state['selected_channels'] = []
 
 # Sidebar: Channel Search & Management
 with st.sidebar:
@@ -84,6 +79,10 @@ with st.sidebar:
             st.session_state['selected_channels'].remove(ch)
             st.rerun()
 
+    if st.button("Reset App"):
+        st.session_state.clear()
+        st.rerun()
+
 # Main Content: Comparison Logic
 if st.session_state['selected_channels']:
     selected_channel_ids = [ch['id'] for ch in st.session_state['selected_channels']]
@@ -118,3 +117,5 @@ if st.session_state['selected_channels']:
                 st.plotly_chart(fig_videos, use_container_width=True)
             else:
                 st.error("Could not retrieve statistics for the selected channels.")
+else:
+    st.info("👈 Please start by searching and adding channels from the sidebar!")
