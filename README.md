@@ -1,2 +1,2 @@
-# mypython
+# yt_analyzer
 # My learnings 
