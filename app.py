@@ -2,6 +2,10 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 from utils import get_youtube_service, get_channel_stats, search_channels, POPULAR_NEWS_CHANNELS
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 st.set_page_config(page_title="YouTube News Channel Comparison", layout="wide")
 
@@ -9,10 +13,11 @@ st.title("YouTube News Channel Comparison")
 st.markdown("Compare statistics of different YouTube news channels.")
 
 # Load API Key from Secrets
-if "YOUTUBE_API_KEY" in st.secrets:
-    api_key = st.secrets["YOUTUBE_API_KEY"]
-else:
-    st.error("YOUTUBE_API_KEY not found in .streamlit/secrets.toml")
+# Load API Key from Environment
+api_key = os.getenv("YOUTUBE_API_KEY")
+
+if not api_key:
+    st.error("YOUTUBE_API_KEY not found in .env file")
     st.stop()
 
 # Initialize Service
