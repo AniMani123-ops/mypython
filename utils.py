@@ -62,10 +62,70 @@ def get_channel_stats(service, channel_ids):
             })
         
         return pd.DataFrame(stats_list)
-        return pd.DataFrame()
     except HttpError as e:
         print(f"An HTTP error %d occurred:\n%s" % (e.resp.status, e.content))
         return pd.DataFrame()
+
+def get_latest_live_stream_stats(service, channel_id):
+    """Retrieves stats for the most recent live stream of a channel."""
+    if not service or not channel_id:
+        return None
+
+    try:
+        # 1. Search for completed broadcasts (most recent first)
+        request = service.search().list(
+            part="snippet",
+            channelId=channel_id,
+            eventType="completed",
+            type="video",
+            order="date",
+            maxResults=1
+        )
+        response = request.execute()
+        
+        # If no completed, try 'live'
+        if not response.get("items"):
+             request = service.search().list(
+                part="snippet",
+                channelId=channel_id,
+                eventType="live",
+                type="video",
+                order="date",
+                maxResults=1
+            )
+             response = request.execute()
+
+        if not response.get("items"):
+            return None
+
+        video_id = response["items"][0]["id"]["videoId"]
+        snippet = response["items"][0]["snippet"]
+
+        # 2. Get Video Statistics
+        stats_request = service.videos().list(
+            part="statistics, liveStreamingDetails",
+            id=video_id
+        )
+        stats_response = stats_request.execute()
+        
+        if not stats_response.get("items"):
+             return None
+             
+        stats = stats_response["items"][0]["statistics"]
+        
+        return {
+            "title": snippet["title"],
+            "published_at": snippet["publishedAt"], # Original start time
+            "views": int(stats.get("viewCount", 0)),
+            "likes": int(stats.get("likeCount", 0)),
+            "comments": int(stats.get("commentCount", 0)),
+            "thumbnail": snippet["thumbnails"]["high"]["url"],
+            "video_id": video_id
+        }
+
+    except HttpError as e:
+        print(f"An HTTP error occurred: {e}")
+        return None
 
 POPULAR_NEWS_CHANNELS = {
     "BBC News": "UC16niRr50-MSBwiO3YDb3RA",

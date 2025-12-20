@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-from utils import get_youtube_service, get_channel_stats, search_channels, POPULAR_NEWS_CHANNELS
+from utils import get_youtube_service, get_channel_stats, search_channels, get_latest_live_stream_stats, POPULAR_NEWS_CHANNELS
 import os
 from dotenv import load_dotenv
 
@@ -88,39 +88,72 @@ with st.sidebar:
         st.session_state.clear()
         st.rerun()
 
-# Main Content: Comparison Logic
-if st.session_state['selected_channels']:
-    selected_channel_ids = [ch['id'] for ch in st.session_state['selected_channels']]
-    
-    if st.button("Compare Selected Channels"):
-        with st.spinner("Fetching statistics..."):
-            stats_df = get_channel_stats(service, selected_channel_ids)
-                
-            if not stats_df.empty:
-                st.divider()
-                st.header("Comparison")
+# Main Content: Tabs
+tab1, tab2 = st.tabs(["Channel Comparison", "Live Stream Stats"])
 
-                # Tabular View
-                st.subheader("Tabular View")
-                st.dataframe(stats_df, use_container_width=True)
-
-                # Graphical View
-                st.subheader("Graphical View")
-                
-                # Layout for charts
-                chart_col1, chart_col2 = st.columns(2)
-                
-                with chart_col1:
-                    fig_subs = px.bar(stats_df, x='Channel Name', y='Subscribers', title='Subscribers Comparison', color='Channel Name')
-                    st.plotly_chart(fig_subs, use_container_width=True)
+with tab1:
+    if st.session_state['selected_channels']:
+        selected_channel_ids = [ch['id'] for ch in st.session_state['selected_channels']]
+        
+        if st.button("Compare Selected Channels"):
+            with st.spinner("Fetching statistics..."):
+                stats_df = get_channel_stats(service, selected_channel_ids)
                     
-                with chart_col2:
-                     fig_views = px.bar(stats_df, x='Channel Name', y='Total Views', title='Total Views Comparison', color='Channel Name')
-                     st.plotly_chart(fig_views, use_container_width=True)
+                if not stats_df.empty:
+                    st.divider()
+                    st.header("Comparison")
+
+                    # Tabular View
+                    st.subheader("Tabular View")
+                    st.dataframe(stats_df, use_container_width=True)
+
+                    # Graphical View
+                    st.subheader("Graphical View")
+                    
+                    # Layout for charts
+                    chart_col1, chart_col2 = st.columns(2)
+                    
+                    with chart_col1:
+                        fig_subs = px.bar(stats_df, x='Channel Name', y='Subscribers', title='Subscribers Comparison', color='Channel Name')
+                        st.plotly_chart(fig_subs, use_container_width=True)
+                        
+                    with chart_col2:
+                         fig_views = px.bar(stats_df, x='Channel Name', y='Total Views', title='Total Views Comparison', color='Channel Name')
+                         st.plotly_chart(fig_views, use_container_width=True)
+                    
+                    fig_videos = px.bar(stats_df, x='Channel Name', y='Video Count', title='Video Count Comparison', color='Channel Name')
+                    st.plotly_chart(fig_videos, use_container_width=True)
+                else:
+                    st.error("Could not retrieve statistics for the selected channels.")
+    else:
+        st.info("👈 Please start by searching and adding channels from the sidebar!")
+
+with tab2:
+    st.header("Latest Live Stream Statistics")
+    
+    if st.session_state['selected_channels']:
+        channel_options = {ch['title']: ch for ch in st.session_state['selected_channels']}
+        selected_channel_name = st.selectbox("Select a channel", options=list(channel_options.keys()))
+
+        if st.button("Get Latest Stream Stats"):
+            selected_channel = channel_options[selected_channel_name]
+            with st.spinner(f"Fetching latest stream data for {selected_channel['title']}..."):
+                st.divider()
+                st.subheader(f"{selected_channel['title']}")
+                live_stats = get_latest_live_stream_stats(service, selected_channel['id'])
                 
-                fig_videos = px.bar(stats_df, x='Channel Name', y='Video Count', title='Video Count Comparison', color='Channel Name')
-                st.plotly_chart(fig_videos, use_container_width=True)
-            else:
-                st.error("Could not retrieve statistics for the selected channels.")
-else:
-    st.info("👈 Please start by searching and adding channels from the sidebar!")
+                if live_stats:
+                    st.write(f"**Title:** {live_stats['title']}")
+                    st.image(live_stats['thumbnail'])
+                    st.write(f"**Published At:** {live_stats['published_at']}")
+                    
+                    col1, col2, col3 = st.columns(3)
+                    col1.metric("Views", f"{live_stats['views']:,}")
+                    col2.metric("Likes", f"{live_stats['likes']:,}")
+                    col3.metric("Comments", f"{live_stats['comments']:,}")
+                    
+                    st.caption(f"Video ID: {live_stats['video_id']}")
+                else:
+                    st.warning(f"No recent live streams found for {selected_channel['title']}.")
+    else:
+        st.info("👈 Please add channels from the sidebar to view their live stream stats!")
